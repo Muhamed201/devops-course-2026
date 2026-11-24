@@ -1,0 +1,6 @@
+---
+app_image: ghcr.io/muhamed201/devops-ci-app
+app_tag: "9ea8df6b995744f53713dd3b05061873cb691394"
+app_container_name: devops-ci-app
+app_host_port: 5003
+app_internal_port: 5000

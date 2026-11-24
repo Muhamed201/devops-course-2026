@@ -1,0 +1,43 @@
+---
+- name: Assert supported VM platform
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+      - ansible_distribution_version is version("24.04", "==")
+      - ansible_architecture == "x86_64"
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, gnupg, openssh-server, ufw, python3-debian, python3-requests]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Check for an existing Docker source
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/docker.list
+  register: docker_legacy_source
+- name: Check for the existing Docker deb822 source
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/docker.sources
+  register: docker_deb822_source
+- name: Add Docker official repository
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_distribution_release }}"
+    components: [stable]
+    architectures: [amd64]
+    signed_by: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  when: not docker_legacy_source.stat.exists and not docker_deb822_source.stat.exists
+- name: Install Docker Engine
+  ansible.builtin.apt:
+    name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Enable Docker service
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
