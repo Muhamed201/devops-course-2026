@@ -42,25 +42,39 @@
     mode: "0644"
     validate: "sshd -t -f %s"
   notify: Restart SSH
+- name: Read active firewall configuration
+  ansible.builtin.command: ufw status verbose
+  environment:
+    LC_ALL: C
+  register: firewall_status
+  changed_when: false
 - name: Retain rate limiting on the existing SSH port
   community.general.ufw:
     rule: limit
     port: "{{ ansible_port }}"
     proto: tcp
+  when: firewall_status.stdout is not search('(?m)^' ~ ansible_port ~ '/tcp\s+LIMIT IN')
 - name: Allow HTTP
   community.general.ufw:
     rule: allow
     port: "80"
     proto: tcp
+  when: firewall_status.stdout is not search('(?m)^80/tcp\s+ALLOW IN')
 - name: Set incoming firewall policy
   community.general.ufw:
     default: deny
     direction: incoming
+  when: "'Default: deny (incoming)' not in firewall_status.stdout"
 - name: Set outgoing firewall policy
   community.general.ufw:
     default: allow
     direction: outgoing
+  when: "'allow (outgoing)' not in firewall_status.stdout"
+- name: Set firewall logging
+  community.general.ufw:
+    logging: low
+  when: "'Logging: on (low)' not in firewall_status.stdout"
 - name: Enable firewall
   community.general.ufw:
     state: enabled
-    logging: low
+  when: "'Status: active' not in firewall_status.stdout"
