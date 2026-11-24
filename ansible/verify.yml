@@ -1,0 +1,34 @@
+---
+- name: Audit the deployed VM
+  hosts: vm
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read effective SSH settings
+      ansible.builtin.command: sshd -T
+      changed_when: false
+      register: ssh_config
+    - name: Verify hardened SSH
+      ansible.builtin.assert:
+        that:
+          - "'passwordauthentication no' in ssh_config.stdout"
+          - "'permitrootlogin no' in ssh_config.stdout"
+    - name: Read application container state
+      community.docker.docker_container_info:
+        name: "{{ app_container_name }}"
+      register: app_container
+    - name: Verify container availability and loopback binding
+      ansible.builtin.assert:
+        that:
+          - app_container.exists
+          - app_container.container.State.Running
+          - app_container.container.HostConfig.PortBindings[app_internal_port | string + '/tcp'][0].HostIp == '127.0.0.1'
+    - name: Query application health
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ app_host_port }}/health"
+        return_content: true
+      register: health
+    - name: Verify response payload
+      ansible.builtin.assert:
+        that:
+          - health.json.status == 'ok'
